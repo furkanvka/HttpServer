@@ -25,9 +25,6 @@ Amaç, düşük seviye ağ programlama ve HTTP protokolü mantığını öğrenm
 
 └── Makefile
 
-Tabii! İşte düzgün biçimlendirilmiş ve GitHub README’ye uygun hale getirilmiş versiyonu 👇
-
----
 
 ## 🧱 Kullanım
 
@@ -66,7 +63,6 @@ Bu proje aşağıdaki konuların öğrenilmesi için uygundur:
 * HTTP isteklerinin parse edilmesi
 * C++ stream ve string işlemleri
 
----
 
 ## 🛠️ Gelecek Geliştirmeler
 
@@ -75,5 +71,4 @@ Bu proje aşağıdaki konuların öğrenilmesi için uygundur:
 * [ ] Statik dosya sunumu (HTML, CSS, JS)
 * [ ] Loglama sistemi
 * [ ] Basit web API yapısı
-
 
