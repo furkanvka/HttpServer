@@ -12,26 +12,49 @@ Amaç, düşük seviye ağ programlama ve HTTP protokolü mantığını öğrenm
 - Tamamen STL + POSIX ile yazılmıştır
 
 ## 📁 Proje Yapısı
-.
+
 ├── http_server.h
+
 ├── http_server.cpp
+
 ├── http_request.h
+
 ├── http_response.h
+
 ├── main.cpp
+
 └── Makefile
 
+Tabii! İşte düzgün biçimlendirilmiş ve GitHub README’ye uygun hale getirilmiş versiyonu 👇
+
+---
+
 ## 🧱 Kullanım
-** CMake yapı klasörü oluştur **
+
+### 🔹 1. CMake yapı klasörü oluştur
+
+```bash
 mkdir build && cd build
+```
 
-** CMake ile yapılandır **
+### 🔹 2. CMake ile yapılandır
+
+```bash
 cmake ..
+```
 
-** Derle**
+### 🔹 3. Derle
+
+```bash
 make
+```
 
-**Çalıştır**
+### 🔹 4. Sunucuyu çalıştır
+
+```bash
 ./server
+```
+
 
 ## 📚 Öğrenme Odakları
 
