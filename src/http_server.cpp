@@ -10,6 +10,15 @@
 #include <sstream>
 #include <cstring>
 
+#include <fstream>
+#include <filesystem> // C++17 ve sonrası için
+#include <algorithm> 
+
+namespace fs = std::filesystem;
+
+// ------------------------------------
+// HTTP Server oluşmu ve tcp socket işlemleri
+// ------------------------------------
 HttpServer::HttpServer(int port){
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
 
@@ -41,7 +50,9 @@ HttpServer::HttpServer(int port){
     std::cout << "[+] Sunucu " << port << " portunda dinliyor..." << std::endl;
 }
 
-
+// ------------------------------------
+// Server döngüsü "ilerde multi-thread eklencek"
+// ------------------------------------
 void HttpServer::start() {
     if (server_fd < 0) {
         std::cerr << "Hata: Sunucu soketi baslatilmadi. start() iptal ediliyor." << std::endl;
@@ -65,9 +76,11 @@ void HttpServer::start() {
     }
 }
 
+// ------------------------------------
+// Baglantı işlemleri 
+// ------------------------------------
 void HttpServer::handle_connection(int client_socket){
     bool keep_alive = true;
-    int size,flag;
     char buffer[4096];
 
     HttpRequest request;
@@ -104,7 +117,9 @@ void HttpServer::handle_connection(int client_socket){
 }
 
 
-    
+// ------------------------------------
+// Http request parser
+// ------------------------------------
 bool HttpServer::parse_request(const std::string& raw_request, HttpRequest& request) {
     std::istringstream stream(raw_request);
     std::string line;
@@ -160,30 +175,26 @@ bool HttpServer::parse_request(const std::string& raw_request, HttpRequest& requ
     return true;
 }
 
+// ------------------------------------
+// Http responser 
+// ------------------------------------
 void HttpServer::send_response(int client_socket, const HttpResponse& response) {
     std::stringstream response_stream;
 
-    // 1. Status Line (Durum Satırı)
-    // Örn: HTTP/1.1 200 OK
     response_stream << "HTTP/1.1 " << response.statusCode << " OK\r\n";
 
-    // Yanıtın gövdesi varsa Content-Length eklenmeli
     response_stream << "Content-Length: " << response.body.length() << "\r\n";
     
-    // 2. Headers (Başlıklar)
     for (const auto& pair : response.headers) {
         response_stream << pair.first << ": " << pair.second << "\r\n";
     }
 
-    // 3. Başlıklar ve Gövde Arasındaki Boş Satır
     response_stream << "\r\n";
 
-    // 4. Body (Gövde)
     response_stream << response.body;
 
     std::string final_response = response_stream.str();
     
-    // İstemciye yanıtı gönder
     ssize_t bytes_sent = send(client_socket, final_response.c_str(), final_response.length(), 0);
 
     if (bytes_sent < 0) {
@@ -193,62 +204,120 @@ void HttpServer::send_response(int client_socket, const HttpResponse& response) 
     }
 }
 
+// ------------------------------------
+// Http Processer
+// ------------------------------------
+
+// html ve css bulundugu kısım
+const std::string PUBLIC_ROOT = "/home/furkan/Documents/http/public"; 
+
 HttpResponse HttpServer::process_request(const HttpRequest& request) {
     HttpResponse response;
 
+    // 1. Connection Header Yönetimi
     auto it = request.headers.find(Constants::HEADER_CONNECTION);
-    if(it != request.headers.end() && it->second == Constants::VALUE_CONN_KEEPALIVE){
+    if (it != request.headers.end() && it->second == Constants::VALUE_CONN_KEEPALIVE) {
         response.headers[Constants::HEADER_CONNECTION] = Constants::VALUE_CONN_KEEPALIVE;
     } else {
         response.headers[Constants::HEADER_CONNECTION] = Constants::VALUE_CONN_CLOSE;
     }
 
-    // --- TEMEL HATA YÖNETİMİ: Metot Kontrolü (Sadece GET destekliyoruz) ---
+    // 2. Sadece GET metodu destekleniyor
     if (request.method != Constants::METHOD_GET) {
-        response.statusCode = Constants::STATUS_405; // 405 Method Not Allowed
-        
+        response.statusCode = Constants::STATUS_405;
         response.headers[Constants::HEADER_CONTENT_TYPE] = Constants::MIME_HTML;
-        response.headers[Constants::HEADER_CONNECTION] = Constants::VALUE_CONN_CLOSE; // Hata sonrası kapat
-        
-        response.body = "<html><body><h1>" + Constants::STATUS_405 + "</h1><p>Bu sunucu sadece GET metodunu destekler.</p></body></html>";
+        response.body =
+            "<html><body><h1>" + Constants::STATUS_405 + "</h1>"
+            "<p>Bu sunucu sadece GET metodunu destekler.</p></body></html>";
         return response;
     }
+
+    // 3. Statik Dosya Servisi
+    std::string requested_path = request.path;
+    if (requested_path == "/") {
+        requested_path = "/index.html"; 
+    }
+
+    fs::path full_path = fs::path(PUBLIC_ROOT) / fs::path(requested_path).relative_path();
+
+    std::cout << "[i] Statik dosya araniyor: " << full_path.string() << std::endl;
+
+    if (fs::exists(full_path) && fs::is_regular_file(full_path)) {
+        response.headers[Constants::HEADER_CONTENT_TYPE] = get_mime_type(full_path.extension().string());
+        if (read_file_to_body(full_path.string(), response.body)) {
+            response.statusCode = Constants::STATUS_200;
+            return response;
+        } else {
+            response.statusCode = Constants::STATUS_500;
+            response.headers[Constants::HEADER_CONTENT_TYPE] = Constants::MIME_HTML;
+            response.body =
+                "<h1>" + Constants::STATUS_500 + "</h1>"
+                "<p>Sunucu dosya okuma hatasi: Izin yetersiz veya okunamiyor.</p>";
+            return response;
+        }
+    }
+
+    // 4. Statik dosya yoksa: 404 NOT FOUND
+    response.statusCode = Constants::STATUS_404;
+    response.headers[Constants::HEADER_CONTENT_TYPE] = Constants::MIME_HTML;
+    response.body =
+        "<html><body>"
+        "<h1>" + Constants::STATUS_404 + "</h1>"
+        "<p>Istediginiz kaynak bulunamadi: <code>" + request.path + "</code></p>"
+        "</body></html>";
+
+    return response;
+}
+
+
+// helper function 
+
+bool HttpServer::read_file_to_body(const std::string& filename, std::string& out_body) {
     
-    // --- URL YÖNLENDİRME (ROUTING) MANTIĞI ---
+    // 1. Dosyayı ikili modda aç
+    std::ifstream file(filename, std::ios::in | std::ios::binary); 
+    
+    if (!file.is_open()) {
+        std::cerr << "[-] HATA: Dosya acilamadi veya bulunamadi: " << filename << std::endl;
+        return false;
+    }
 
-    if (request.path == "/") {
-        response.statusCode = Constants::STATUS_200; // 200 OK
-        response.headers[Constants::HEADER_CONTENT_TYPE] = Constants::MIME_HTML;
+    try {
+        // 2. Dosya boyutunu öğren (fs::file_size C++17 ile çok daha hızlı)
+        // Bu, string'i önceden ayırmamızı sağlar.
+        size_t file_size = fs::file_size(filename); 
         
-        response.body = 
-            "<html><body>"
-            "<h1>Hos geldiniz! Bu C++ Sunucusu</h1>"
-            "<p>Ana sayfa basarili.</p>"
-            "<p><a href='/about'>Hakkinda</a></p>"
-            "</body></html>";
+        // 3. String'i önceden ayır (Tek bir bellek tahsisi)
+        out_body.resize(file_size);
 
-    } else if (request.path == "/about") {
-        response.statusCode = Constants::STATUS_200; // 200 OK
-        response.headers[Constants::HEADER_CONTENT_TYPE] = Constants::MIME_HTML;
-        
-        response.body = 
-            "<html><body>"
-            "<h1>Hakkinda</h1>"
-            "<p>Bu sunucu sifirdan C++ ile yazilmistir.</p>"
-            "<p><a href='/'>Ana Sayfa</a></p>"
-            "</body></html>";
+        // 4. Dosyanın tamamını tek bir okuma işleminde string buffer'ına oku
+        // out_body.data(), C++17'den itibaren mutable (değiştirilebilir) bir pointer sağlar.
+        file.read(out_body.data(), file_size);
 
-    } else {
-        // --- 404 Not Found (Bulunamadı) ---
-        response.statusCode = Constants::STATUS_404;
-        response.headers[Constants::HEADER_CONTENT_TYPE] = Constants::MIME_HTML;
-        
-        response.body = 
-            "<html><body>"
-            "<h1>" + Constants::STATUS_404 + "</h1>"
-            "<p>Istediginiz kaynak bulunamadi: <code>" + request.path + "</code></p>"
-            "</body></html>";
+        // Okuma başarılı mıydı kontrol et (Dosyanın sonuna ulaştı mı?)
+        if (!file) {
+            std::cerr << "[-] HATA: Dosya tam olarak okunamadi (I/O hatasi): " << filename << std::endl;
+            return false;
+        }
+
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << "[-] HATA: Dosya boyutu alinirken hata: " << e.what() << std::endl;
+        file.close();
+        return false;
     }
     
-    return response;
+    file.close(); 
+    return true;
+}
+
+std::string HttpServer::get_mime_type(const std::string& extension) {
+    if (extension == ".html" || extension == ".htm") return Constants::MIME_HTML;
+    if (extension == ".css") return "text/css";
+    if (extension == ".js") return "application/javascript";
+    if (extension == ".json") return Constants::MIME_JSON;
+    if (extension == ".png") return "image/png";
+    if (extension == ".jpg" || extension == ".jpeg") return "image/jpeg";
+    if (extension == ".gif") return "image/gif";
+    
+    return Constants::MIME_OCTET_STREAM; 
 }

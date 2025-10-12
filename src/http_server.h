@@ -26,32 +26,13 @@ public:
 private:
     int server_fd; // Ana sunucu soket tanımlayıcısı
     int port;
-
-    /**
-     * @brief Yeni bir istemci bağlantısını işler (Keep-Alive döngüsü burada gerçekleşir).
-     * @param client_socket İstemciye ait soket tanımlayıcısı.
-     */
     void handle_connection(int client_socket);
-    
-    /**
-     * @brief Cevabı soket üzerinden gönderir.
-     * @param client_socket Hedef soket.
-     * @param response Gönderilecek HttpResponse nesnesi.
-     */
     void send_response(int client_socket, const HttpResponse& response);
     
-    /**
-     * @brief Ham isteği (string) ayrıştırır ve HttpRequest nesnesini doldurur.
-     * @param raw_request Ham HTTP isteği verisi.
-     * @param request Doldurulacak HttpRequest nesnesi.
-     * @return Ayrıştırma başarılıysa true, değilse false.
-     */
     bool parse_request(const std::string& raw_request, HttpRequest& request); 
 
-    /**
-     * @brief Ayrıştırılmış isteği işler ve bir cevap oluşturur.
-     * @param request Gelen HttpRequest nesnesi.
-     * @return İstemciye gönderilmeye hazır HttpResponse nesnesi.
-     */
+
+    std::string get_mime_type(const std::string& extension);
+    bool read_file_to_body(const std::string& filename, std::string& out_body);
     HttpResponse process_request(const HttpRequest& request);
 };
