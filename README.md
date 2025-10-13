@@ -10,6 +10,7 @@ Amaç, düşük seviye ağ programlama ve HTTP protokolü mantığını öğrenm
 - Connection: keep-alive & close yönetimi  
 - Tarayıcı (Firefox, Chrome, curl) uyumlu  
 - Tamamen STL + POSIX ile yazılmıştır
+- Çoklu istemci desteği
 
 ## 📁 Proje Yapısı
 
@@ -66,7 +67,7 @@ Bu proje aşağıdaki konuların öğrenilmesi için uygundur:
 
 ## 🛠️ Gelecek Geliştirmeler
 
-* [ ] Çoklu istemci desteği (`std::thread` veya `select()`)
+* [+] Çoklu istemci desteği (`std::thread` veya `select()`)
 * [ ] POST istek desteği
 * [ ] Statik dosya sunumu (HTML, CSS, JS)
 * [ ] Loglama sistemi

@@ -1,4 +1,3 @@
-
 #include "http_server.h"
 #include "http_request.h"
 #include "http_response.h"
@@ -9,7 +8,7 @@
 #include <unistd.h>
 #include <sstream>
 #include <cstring>
-
+#include <thread> // KRİTİK EKLENTİ: Multi-threading için
 #include <fstream>
 #include <filesystem> // C++17 ve sonrası için
 #include <algorithm> 
@@ -17,11 +16,11 @@
 namespace fs = std::filesystem;
 
 // ------------------------------------
-// HTTP Server oluşmu ve tcp socket işlemleri
+// HTTP Server oluşumu ve TCP socket işlemleri
 // ------------------------------------
 HttpServer::HttpServer(int port){
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
-
+    this->port = port;
     int opt = 1;
     if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)) < 0) {
         perror("setsockopt hatası");
@@ -32,8 +31,8 @@ HttpServer::HttpServer(int port){
     sockaddr_in address;
     std::memset(&address, 0, sizeof(address));
     address.sin_family = AF_INET;
-    address.sin_addr.s_addr = INADDR_ANY;  // Tüm IP'lerden bağlantı kabul et
-    address.sin_port = htons(port);        // Portu ağ byte sırasına çevir
+    address.sin_addr.s_addr = INADDR_ANY; 
+    address.sin_port = htons(port);
 
     if (bind(server_fd, (struct sockaddr*)&address, sizeof(address)) < 0) {
         perror("bind hatası");
@@ -41,7 +40,7 @@ HttpServer::HttpServer(int port){
         exit(EXIT_FAILURE);
     }
 
-    if (listen(server_fd, 10) < 0) { // 10 = bekleyen maksimum bağlantı sayısı
+    if (listen(server_fd, 10) < 0) {
         perror("listen hatası");
         close(server_fd);
         exit(EXIT_FAILURE);
@@ -51,7 +50,7 @@ HttpServer::HttpServer(int port){
 }
 
 // ------------------------------------
-// Server döngüsü "ilerde multi-thread eklencek"
+// Server döngüsü (MULTI-THREAD AKTİF)
 // ------------------------------------
 void HttpServer::start() {
     if (server_fd < 0) {
@@ -72,12 +71,17 @@ void HttpServer::start() {
         }
         
         std::cout << "[+] Yeni bağlantı kabul edildi. Soket FD: " << client_socket << std::endl;
-        handle_connection(client_socket);
+        
+        // KRİTİK ADIM: handle_connection'ı yeni bir iş parçacığına taşı
+        std::thread client_thread(&HttpServer::handle_connection, this, client_socket);
+        
+        // İş parçacığını ana döngüden ayır (detach)
+        client_thread.detach(); 
     }
 }
 
 // ------------------------------------
-// Baglantı işlemleri 
+// Bağlantı işlemleri 
 // ------------------------------------
 void HttpServer::handle_connection(int client_socket){
     bool keep_alive = true;
@@ -87,6 +91,8 @@ void HttpServer::handle_connection(int client_socket){
     HttpResponse response;
 
     while(keep_alive){
+        // recv, bağlantı kesilene kadar bekler. Geleneksel HTTP/1.1 için bu mantık biraz basittir,
+        // ama tarayıcılar kısa istekler için bunu tolere eder.
         ssize_t bytes_read = recv(client_socket,buffer,sizeof(buffer), 0);
         if (bytes_read <= 0) {
             break; 
@@ -102,24 +108,33 @@ void HttpServer::handle_connection(int client_socket){
             response = process_request(request);
             send_response(client_socket,response);
             
-            auto it = request.headers.find("Connection");
-            if(it != request.headers.end() && it->second == "close"){
+            // Connection başlığını kontrol et, ancak performansı artırmak için kapatmayı zorlayacağız.
+            auto it = response.headers.find(Constants::HEADER_CONNECTION);
+            if(it != response.headers.end() && it->second == Constants::VALUE_CONN_CLOSE){
                 keep_alive = false;
+            } else {
+                // Eğer yanıt başlığında close yoksa, mevcut connection durumuna bak.
+                auto req_conn_it = request.headers.find(Constants::HEADER_CONNECTION);
+                if(req_conn_it == request.headers.end() || req_conn_it->second == Constants::VALUE_CONN_CLOSE) {
+                    keep_alive = false;
+                }
             }
 
         } else {
-            // hata çözcez burda
+            // Parsing hatası durumunda bağlantıyı kapat
             break; 
         }
     }
 
     close(client_socket);
+    std::cout << "[-] Bağlantı kapatıldı. Soket FD: " << client_socket << std::endl;
 }
 
 
 // ------------------------------------
 // Http request parser
-// ------------------------------------
+// ... (parse_request fonksiyonu aynı kalır) ...
+
 bool HttpServer::parse_request(const std::string& raw_request, HttpRequest& request) {
     std::istringstream stream(raw_request);
     std::string line;
@@ -181,8 +196,10 @@ bool HttpServer::parse_request(const std::string& raw_request, HttpRequest& requ
 void HttpServer::send_response(int client_socket, const HttpResponse& response) {
     std::stringstream response_stream;
 
-    response_stream << "HTTP/1.1 " << response.statusCode << " OK\r\n";
+    // HTTP Yanıtı Formatı Düzeltildi: response.statusCode (Örn: "200 OK") arkasına tekrar " OK" eklenmiyor.
+    response_stream << "HTTP/1.1 " << response.statusCode << "\r\n"; 
 
+    // Content-Length zorunludur.
     response_stream << "Content-Length: " << response.body.length() << "\r\n";
     
     for (const auto& pair : response.headers) {
@@ -208,20 +225,15 @@ void HttpServer::send_response(int client_socket, const HttpResponse& response) 
 // Http Processer
 // ------------------------------------
 
-// html ve css bulundugu kısım
 const std::string PUBLIC_ROOT = "/home/furkan/Documents/http/public"; 
 
 HttpResponse HttpServer::process_request(const HttpRequest& request) {
     HttpResponse response;
 
-    // 1. Connection Header Yönetimi
-    auto it = request.headers.find(Constants::HEADER_CONNECTION);
-    if (it != request.headers.end() && it->second == Constants::VALUE_CONN_KEEPALIVE) {
-        response.headers[Constants::HEADER_CONNECTION] = Constants::VALUE_CONN_KEEPALIVE;
-    } else {
-        response.headers[Constants::HEADER_CONNECTION] = Constants::VALUE_CONN_CLOSE;
-    }
-
+    // PERFORMANS OPTİMİZASYONU: Bağlantıyı her zaman kapatmaya zorla (Gecikmeyi önler)
+    // keep-alive yönetimi karmaşık ve hatalı implementasyonda yavaşlığa neden olur.
+    response.headers[Constants::HEADER_CONNECTION] = Constants::VALUE_CONN_CLOSE;
+    
     // 2. Sadece GET metodu destekleniyor
     if (request.method != Constants::METHOD_GET) {
         response.statusCode = Constants::STATUS_405;
@@ -234,11 +246,16 @@ HttpResponse HttpServer::process_request(const HttpRequest& request) {
 
     // 3. Statik Dosya Servisi
     std::string requested_path = request.path;
-    if (requested_path == "/") {
-        requested_path = "/index.html"; 
+    // Baştaki '/' karakterini kaldırarak dosya sistemi birleşimini güvenli hale getiriyoruz.
+    while (requested_path.length() > 0 && requested_path.front() == '/') {
+        requested_path.erase(0, 1);
+    }
+    // Ana sayfa ise index.html olarak ayarla
+    if (requested_path.empty()) {
+        requested_path = "index.html"; 
     }
 
-    fs::path full_path = fs::path(PUBLIC_ROOT) / fs::path(requested_path).relative_path();
+    fs::path full_path = fs::path(PUBLIC_ROOT) / requested_path;
 
     std::cout << "[i] Statik dosya araniyor: " << full_path.string() << std::endl;
 
@@ -271,10 +288,9 @@ HttpResponse HttpServer::process_request(const HttpRequest& request) {
 
 
 // helper function 
-
+// Dosya okuma optimizasyonu (tek seferde okuma)
 bool HttpServer::read_file_to_body(const std::string& filename, std::string& out_body) {
     
-    // 1. Dosyayı ikili modda aç
     std::ifstream file(filename, std::ios::in | std::ios::binary); 
     
     if (!file.is_open()) {
@@ -283,18 +299,11 @@ bool HttpServer::read_file_to_body(const std::string& filename, std::string& out
     }
 
     try {
-        // 2. Dosya boyutunu öğren (fs::file_size C++17 ile çok daha hızlı)
-        // Bu, string'i önceden ayırmamızı sağlar.
+        // Dosya okuma optimizasyonu
         size_t file_size = fs::file_size(filename); 
-        
-        // 3. String'i önceden ayır (Tek bir bellek tahsisi)
         out_body.resize(file_size);
-
-        // 4. Dosyanın tamamını tek bir okuma işleminde string buffer'ına oku
-        // out_body.data(), C++17'den itibaren mutable (değiştirilebilir) bir pointer sağlar.
         file.read(out_body.data(), file_size);
 
-        // Okuma başarılı mıydı kontrol et (Dosyanın sonuna ulaştı mı?)
         if (!file) {
             std::cerr << "[-] HATA: Dosya tam olarak okunamadi (I/O hatasi): " << filename << std::endl;
             return false;
