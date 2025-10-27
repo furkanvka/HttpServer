@@ -67,7 +67,7 @@ Bu proje aşağıdaki konuların öğrenilmesi için uygundur:
 
 ## 🛠️ Gelecek Geliştirmeler
 
-* [.] Çoklu istemci desteği (`std::thread` veya `select()`)
+* [x] Çoklu istemci desteği (`std::thread` veya `select()`)
 * [ ] POST istek desteği
 * [ ] Statik dosya sunumu (HTML, CSS, JS)
 * [ ] Loglama sistemi
