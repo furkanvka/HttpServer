@@ -1,21 +1,25 @@
-#include "http_response.h"
-#include "Constants.h"
+#include "http_message.h"
+#include "constants.h"
 #include <sstream>
 #include <algorithm> 
 
-std::string HttpResponse::toString() {
+std::string HttpResponse::toString() const {
     std::stringstream response_stream;
 
     response_stream << Constants::HTTP_VERSION << " " << statusCode << "\r\n";
 
     response_stream << "Content-Length: " << std::to_string(body.length()) << "\r\n";
     
-    if (headers.find(Constants::HEADER_CONTENT_TYPE) == headers.end()) {
-        headers[Constants::HEADER_CONTENT_TYPE] = Constants::MIME_HTML;
+    bool has_content_type = false;
+    for (const auto& pair : headers) {
+        if (pair.first == Constants::HEADER_CONTENT_TYPE) {
+            has_content_type = true;
+        }
+        response_stream << pair.first << ": " << pair.second << "\r\n";
     }
     
-    for (const auto& pair : headers) {
-        response_stream << pair.first << ": " << pair.second << "\r\n";
+    if (!has_content_type) {
+        response_stream << Constants::HEADER_CONTENT_TYPE << ": " << Constants::MIME_HTML << "\r\n";
     }
 
     response_stream << "\r\n";

@@ -1,12 +1,5 @@
-#include "http_server.h"
-#include <iostream>
+#include "cli/cli.h"
 
-int main() {
-    // 8080 portunda bir HTTP sunucusu başlat
-    HttpServer server(8080);
-
-    // Bağlantıları kabul etmeye başla
-    server.start();
-
-    return 0;
+int main(int argc, char* argv[]) {
+    return cli::parse_arguments(argc, argv);
 }

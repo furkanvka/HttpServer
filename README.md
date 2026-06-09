@@ -1,9 +1,9 @@
-# 🧩 Simple HTTP Server (C++)
+# Simple HTTP Server (C++)
 
 Bu proje, yalnızca **C++ ve POSIX soketleri** kullanılarak sıfırdan yazılmış basit bir **HTTP 1.1 sunucusudur**.  
 Amaç, düşük seviye ağ programlama ve HTTP protokolü mantığını öğrenmektir.
 
-## 🚀 Özellikler
+## Özellikler
 - HTTP/1.1 desteği  
 - GET isteklerini işleme  
 - Temel yönlendirme ("/" ve "/about")  
@@ -12,7 +12,7 @@ Amaç, düşük seviye ağ programlama ve HTTP protokolü mantığını öğrenm
 - Tamamen STL + POSIX ile yazılmıştır
 - Çoklu istemci desteği
 
-## 📁 Proje Yapısı
+## Proje Yapısı
 
 ├── http_server.h
 
@@ -27,7 +27,7 @@ Amaç, düşük seviye ağ programlama ve HTTP protokolü mantığını öğrenm
 └── Makefile
 
 
-## 🧱 Kullanım
+## Kullanım
 
 ### 🔹 1. CMake yapı klasörü oluştur
 
@@ -54,7 +54,7 @@ make
 ```
 
 
-## 📚 Öğrenme Odakları
+## Öğrenme Odakları
 
 Bu proje aşağıdaki konuların öğrenilmesi için uygundur:
 
@@ -65,11 +65,15 @@ Bu proje aşağıdaki konuların öğrenilmesi için uygundur:
 * C++ stream ve string işlemleri
 
 
-## 🛠️ Gelecek Geliştirmeler
+## Gelecek Geliştirmeler
 
 * [x] Çoklu istemci desteği (`std::thread` veya `select()`)
 * [ ] POST istek desteği
-* [ ] Statik dosya sunumu (HTML, CSS, JS)
+* [x] Statik dosya sunumu (HTML, CSS, JS)
 * [ ] Loglama sistemi
 * [ ] Basit web API yapısı
+* [x] Komut satırı argümanlarını parse etme (--port, --root, --help)
+* [ ] Port ve statik klasör yolunun Config nesnesi ile dinamik yönetimi
+* [ ] Sisteme global kurulum desteği (sudo make install)
+* [ ] Yapılandırılmış loglama sistemi (Hata ve erişim kayıtları)
 
