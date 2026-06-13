@@ -12,21 +12,6 @@ Amaç, düşük seviye ağ programlama ve HTTP protokolü mantığını öğrenm
 - Tamamen STL + POSIX ile yazılmıştır
 - Çoklu istemci desteği
 
-## Proje Yapısı
-
-├── http_server.h
-
-├── http_server.cpp
-
-├── http_request.h
-
-├── http_response.h
-
-├── main.cpp
-
-└── Makefile
-
-
 ## Kullanım
 
 ### 🔹 1. CMake yapı klasörü oluştur
