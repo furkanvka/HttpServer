@@ -7,8 +7,7 @@ Amaç, düşük seviye ağ programlama ve HTTP protokolü mantığını öğrenm
 - HTTP/1.1 desteği  
 - GET isteklerini işleme  
 - Temel yönlendirme ("/" ve "/about")  
-- Connection: keep-alive & close yönetimi  
-- Tarayıcı (Firefox, Chrome, curl) uyumlu  
+- Connection: keep-alive & close yönetimi
 - Tamamen STL + POSIX ile yazılmıştır
 - Çoklu istemci desteği
 
