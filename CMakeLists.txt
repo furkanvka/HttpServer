@@ -17,6 +17,7 @@ set(SOURCES
     src/core/http_parser.cpp
     src/core/file_handler.cpp
     src/http/http_message.cpp
+    src/core/thread_pool.cpp
     src/cli/cli.cpp
     src/main.cpp
 )

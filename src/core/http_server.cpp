@@ -1,7 +1,7 @@
 #include "http_server.h"
 #include "http_parser.h"
 
-HttpServer::HttpServer(int port, const std::string& root_path) : file_handler(root_path){
+HttpServer::HttpServer(int port, const std::string& root_path) : file_handler(root_path),pool(std::thread::hardware_concurrency()){
     server_fd = socket(AF_INET, SOCK_STREAM, 0);
     this->port = port;
     int opt = 1;
@@ -52,8 +52,12 @@ void HttpServer::start() {
         
         std::cout << "[+] Yeni bağlantı kabul edildi. Soket FD: " << client_socket << std::endl;
         
-        std::thread client_thread(&HttpServer::handle_connection, this, client_socket);
-        client_thread.detach(); 
+        // ESKİ KOD: std::thread client_thread(&HttpServer::handle_connection, this, client_socket);
+        // ESKİ KOD: client_thread.detach(); 
+
+        // YENİ KOD: İşi doğrudan thread havuzuna fırlatıyoruz!
+        pool.enqueue(&HttpServer::handle_connection, this, client_socket);
+        
     }
 }
 
